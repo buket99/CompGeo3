@@ -5,6 +5,7 @@ import (
 	"container/heap"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -330,23 +331,63 @@ func (eq *EventQueue) Pop() interface{} {
 	return x
 }
 
-func lineSweep(events EventQueue) {
-	// Ereigniswarteschlange sortieren
-	heap.Init(&events)
+type ByPoint []Event
 
-	// Initialisierung der Statusstruktur (z. B. leeren Baum)
+func (a ByPoint) Len() int           { return len(a) }
+func (a ByPoint) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByPoint) Less(i, j int) bool { return a[i].x < a[j].x }
 
-	for events.Len() > 0 {
-		// Nächstes Ereignis aus der Warteschlange abrufen
-		event := heap.Pop(&events).(Event)
+func treatStartPoint(event Event) {
+	fmt.Println("treatStartPoint", event)
+}
+func treatEndPoint(event Event) {
+	fmt.Println("treatEndPoint", event)
+}
+func treatIntersectingPoint(event Event) {
+	fmt.Println("treatIntersectingPoint", event)
+}
+
+func lineSweep(graphs []Graph) {
+	// Initialisierung der Statusstruktur
+	events := make([]Event, 0, len(graphs)*2)
+
+	// generate a pair of events for each graph
+	for _, g := range graphs {
+		startEvent := Event{x: g.Start.X, y: g.Start.Y, eventType: Start}
+		endEvent := Event{x: g.End.X, y: g.End.Y, eventType: End}
+		events = append(events, startEvent, endEvent)
+	}
+	// sort x-coordinates in ascending order
+	sort.Sort(ByPoint(events))
+
+	// intialize and fill eventQueue
+	eventQueue := make(EventQueue, 0)
+	heap.Init(&eventQueue)
+	for _, event := range events {
+		heap.Push(&eventQueue, event)
+	}
+
+	// actual line sweep
+	for eventQueue.Len() > 0 {
+		// return event with highest priority from the queue
+		event := heap.Pop(&eventQueue).(Event)
 
 		switch event.eventType {
 		case Start:
-			// Linie zur Statusstruktur hinzufügen
+			// Process Start event
+			// Add new segment to SL
+			treatStartPoint(event)
+			fmt.Println("Start Event", event)
 		case End:
-			// Linie aus der Statusstruktur entfernen
+			// Process End event
+			// Remove segment form SL
+			treatEndPoint(event)
+			fmt.Println("End Event", event)
 		case Intersection:
-			// Behandlung von Schnittpunkten
+			// Process Intersection event
+			// swap intersecting segments in SL
+			treatIntersectingPoint(event)
+			fmt.Println("Intersection Event", event)
 		}
 	}
 }
