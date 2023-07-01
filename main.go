@@ -11,84 +11,89 @@ import (
 
 func main() {
 
-	var graphsFirstFile = dataLoading("s_1000_1.dat")
+	var graphsFirstFile = dataLoading("s_1000_10.dat")
 	fmt.Println(len(graphsFirstFile))
 	var filteredGraphs = filterGraphs(graphsFirstFile)
 	fmt.Println(len(filteredGraphs))
+
 	/*
-		start := time.Now()
-		// Call your function
-		var amount1 = amountOfInterceptingGraphs(graphsFirstFile)
-		// Get the time again and calculate the duration
-		duration := time.Since(start)
-		fmt.Println("In the first data set the amount of crossing graphs is ", amount1)
-		// Print the duration
-		fmt.Println("Time taken for first calculation:", duration)
+		myGraphs := []Graph{
+			// Punkt und nicht paarweise verschieden
+			{Start: Point{20, 20}, End: Point{20, 20}},
+			{Start: Point{10, 10}, End: Point{10, 30}},
+			// Berühren
+			{Start: Point{0, 2}, End: Point{0.5, 2.5}},
+			{Start: Point{0, 2}, End: Point{-0.5, 2.5}},
+			// Zweifach Schnittpunkt in 0,0
+			{Start: Point{-1, -1}, End: Point{0.3, 0.3}},
+			{Start: Point{0.5, 1}, End: Point{-0.5, -1}},
+			{Start: Point{-1, 1}, End: Point{1, -1}},
+		}
+		var myFilteredgraphs = filterGraphs(myGraphs)
+		print(len(myFilteredgraphs))
 
-		var graphsSecondFile = dataLoading("s_1000_10.dat")
-		start = time.Now()
-		// Call your function
-		var amount2 = amountOfInterceptingGraphs(graphsSecondFile)
-		// Get the time again and calculate the duration
-		duration = time.Since(start)
-		fmt.Println("In the second data set the amount of crossing graphs is ", amount2)
-		// Print the duration
-		fmt.Println("Time taken for second calculation:", duration)
+		/*
+			start := time.Now()
+			// Call your function
+			var amount1 = amountOfInterceptingGraphs(graphsFirstFile)
+			// Get the time again and calculate the duration
+			duration := time.Since(start)
+			fmt.Println("In the first data set the amount of crossing graphs is ", amount1)
+			// Print the duration
+			fmt.Println("Time taken for first calculation:", duration)
 
-		var graphsThirdFile = dataLoading("s_10000_1.dat")
-		start = time.Now()
-		// Call your function
-		var amount3 = amountOfInterceptingGraphs(graphsThirdFile)
-		// Get the time again and calculate the duration
-		duration = time.Since(start)
-		fmt.Println("In the third data set the amount of crossing graphs is ", amount3)
-		// Print the duration
-		fmt.Println("Time taken for third calculation:", duration)
+			var graphsSecondFile = dataLoading("s_1000_10.dat")
+			start = time.Now()
+			// Call your function
+			var amount2 = amountOfInterceptingGraphs(graphsSecondFile)
+			// Get the time again and calculate the duration
+			duration = time.Since(start)
+			fmt.Println("In the second data set the amount of crossing graphs is ", amount2)
+			// Print the duration
+			fmt.Println("Time taken for second calculation:", duration)
 
-		var graphsFourthFile = dataLoading("s_100000_1.dat")
-		start = time.Now()
-		// Call your function
-		var amount4 = amountOfInterceptingGraphs(graphsFourthFile)
-		// Get the time again and calculate the duration
-		duration = time.Since(start)
-		fmt.Println("In the fourth data set the amount of crossing graphs is ", amount4)
-		// Print the duration
-		fmt.Println("Time taken for fourth calculation:", duration)
+			var graphsThirdFile = dataLoading("s_10000_1.dat")
+			start = time.Now()
+			// Call your function
+			var amount3 = amountOfInterceptingGraphs(graphsThirdFile)
+			// Get the time again and calculate the duration
+			duration = time.Since(start)
+			fmt.Println("In the third data set the amount of crossing graphs is ", amount3)
+			// Print the duration
+			fmt.Println("Time taken for third calculation:", duration)
+
+			var graphsFourthFile = dataLoading("s_100000_1.dat")
+			start = time.Now()
+			// Call your function
+			var amount4 = amountOfInterceptingGraphs(graphsFourthFile)
+			// Get the time again and calculate the duration
+			duration = time.Since(start)
+			fmt.Println("In the fourth data set the amount of crossing graphs is ", amount4)
+			// Print the duration
+			fmt.Println("Time taken for fourth calculation:", duration)
 
 	*/
 }
 
 func filterGraphs(graphs []Graph) []Graph {
+	newGraphs := make([]Graph, 0)
 	filteredGraphs := make([]Graph, 0)
-	intersectingPoints := make(map[Point]int)
 
-	for i, graph := range graphs {
+	for _, graph := range graphs {
 		// Aussortieren, wenn x-Werte oder y-Werte der Start- und Endpunkte gleich sind
 		if graph.Start.X == graph.End.X || graph.Start.Y == graph.End.Y {
-			fmt.Println("ist ein punkt:", graph)
+			fmt.Println("X und Y nicht paarweise verschieden:", graph)
 			continue
 		}
+		newGraphs = append(newGraphs, graph)
+	}
 
-		intersects := false
-		for j, graph2 := range graphs {
-			if i != j && doGraphsIntersect(graph, graph2) {
-				// Graphs intersect at a point
-				intersectingPoints[graph.Start]++
-				intersectingPoints[graph.End]++
-				intersects = true
-				break
-			}
-		}
-		// Aussortieren, wenn sich mehr als 2 Graphen im selben Punkt schneiden
-		if !intersects && intersectingPoints[graph.Start] > 2 || intersectingPoints[graph.End] > 2 {
-			fmt.Println("mehr als zwei schnitte im selben punkt:", intersectingPoints)
-			continue
-		}
+	for i, graph := range newGraphs {
 
 		// Aussortieren, wenn der Graph einen anderen Graphen nur berührt
-		intersects = false
-		for _, otherGraph := range graphs {
-			if graph != otherGraph && doGraphsIntersect(graph, otherGraph) {
+		intersects := false
+		for h, otherGraph := range newGraphs {
+			if i != h && doGraphsTouch(graph, otherGraph) {
 				intersects = true
 				fmt.Println("Berührt:", graph, otherGraph)
 				break
@@ -98,11 +103,61 @@ func filterGraphs(graphs []Graph) []Graph {
 			continue
 		}
 
+		intersects = false
+		samePointIntersections := make(map[Point]int) // Track intersecting points and their counts
+
+		for j, graph2 := range newGraphs {
+			if i != j && doGraphsIntersect(graph, graph2) {
+				if !doGraphsTouch(graph, graph2) {
+					// Graphs intersect at a point
+					intersectingPoint, found := findIntersectionPoint(graph, graph2) // Assuming a helper function to find the intersection point
+					if found {
+						samePointIntersections[intersectingPoint]++
+						intersects = true
+					}
+				}
+			}
+		}
+
+		areIntersectingInTheSamePoint := false
+		// Check if there are more than 2 intersections at the same point
+		for _, count := range samePointIntersections {
+			if count >= 2 {
+				areIntersectingInTheSamePoint = true
+				fmt.Println("Der folgende Graph hat mehr als zwei anderen Graphen im selben Schnittpunkt: ", graph)
+				continue
+			}
+		}
+		if areIntersectingInTheSamePoint {
+			continue
+		}
+
 		// Graph zu den gefilterten Graphen hinzufügen
 		filteredGraphs = append(filteredGraphs, graph)
 	}
 
 	return filteredGraphs
+}
+func findIntersectionPoint(graph1, graph2 Graph) (Point, bool) {
+	p1 := graph1.Start
+	p2 := graph1.End
+	q1 := graph2.Start
+	q2 := graph2.End
+
+	// Calculate the slopes of the line segments
+	m1 := (p2.Y - p1.Y) / (p2.X - p1.X)
+	m2 := (q2.Y - q1.Y) / (q2.X - q1.X)
+
+	// Check if the line segments are parallel
+	if m1 == m2 {
+		return Point{}, false
+	}
+
+	// Calculate the intersection point coordinates
+	intersectionX := (m1*p1.X - m2*q1.X + q1.Y - p1.Y) / (m1 - m2)
+	intersectionY := m1*(intersectionX-p1.X) + p1.Y
+
+	return Point{X: intersectionX, Y: intersectionY}, true
 }
 
 // Berechnet das Kreuzprodukt zweier Vektoren.
@@ -123,17 +178,43 @@ func ccw(p1, p2, p3 Point) int {
 
 // Überprüft, ob sich zwei Graphen echt schneiden.
 func doGraphsIntersect(graph1, graph2 Graph) bool {
-	orientation1 := ccw(graph1.Start, graph1.End, graph2.Start)
-	orientation2 := ccw(graph1.Start, graph1.End, graph2.End)
-	orientation3 := ccw(graph2.Start, graph2.End, graph1.Start)
-	orientation4 := ccw(graph2.Start, graph2.End, graph1.End)
+	p1 := graph1.Start
+	p2 := graph1.End
+	// Bestimme die Punkte R1 und R2 von Graph 2
+	q1 := graph2.Start
+	q2 := graph2.End
 
-	// Überprüfe, ob die Linien sich echt schneiden
-	if (orientation1 != orientation2) && (orientation3 != orientation4) {
+	if ccw(p1, p2, q1)*ccw(p1, p2, q2) <= 0 && ccw(q1, q2, p1)*ccw(q1, q2, p2) <= 0 {
+		return true
+	}
+	return false
+}
+
+func doGraphsTouch(graph1, graph2 Graph) bool {
+	// Extract the start and end points of Graph 1
+	p1 := graph1.Start
+	p2 := graph1.End
+	// Extract the start and end points of Graph 2
+	q1 := graph2.Start
+	q2 := graph2.End
+
+	// Check if the start or end point of Graph 1 lies on Graph 2
+	if isPointOnLine(p1, q1, q2) || isPointOnLine(p2, q1, q2) {
+		return true
+	}
+
+	// Check if the start or end point of Graph 2 lies on Graph 1
+	if isPointOnLine(q1, p1, p2) || isPointOnLine(q2, p1, p2) {
 		return true
 	}
 
 	return false
+}
+
+func isPointOnLine(p, q1, q2 Point) bool {
+	// Check if point p lies on the line segment q1-q2
+	return (ccw(p, q1, q2) == 0) && (q1.X <= p.X && p.X <= q2.X || q2.X <= p.X && p.X <= q1.X) &&
+		(q1.Y <= p.Y && p.Y <= q2.Y || q2.Y <= p.Y && p.Y <= q1.Y)
 }
 
 func getIntersectingPoint(graph1 Graph, graph2 Graph) Point {
