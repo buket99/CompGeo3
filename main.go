@@ -5,75 +5,73 @@ import (
 	"container/heap"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 func main() {
-	/*
-		var graphsFirstFile = dataLoading("s_1000_10.dat")
-		fmt.Println(len(graphsFirstFile))
-		var filteredGraphs = filterGraphs(graphsFirstFile)
-		fmt.Println(len(filteredGraphs))
-	*/
-	/*
-			myGraphs := []Graph{
-				// Punkt und nicht paarweise verschieden
-				{Start: Point{20, 20}, End: Point{20, 20}},
-				{Start: Point{10, 10}, End: Point{10, 30}},
-				// Berühren
-				{Start: Point{0, 2}, End: Point{0.5, 3}},
-				{Start: Point{0, 2}, End: Point{-0.5, 3}},
-				{Start: Point{0.25, 2.5}, End: Point{0.5, 2}},
-				// Zweifach Schnittpunkt in 0,0
-				{Start: Point{-1, -1}, End: Point{0.3, 0.3}},
-				{Start: Point{0.5, 1}, End: Point{-0.5, -1}},
-				{Start: Point{-1, 1}, End: Point{1, -1}},
-			}
 
+	var graphsFirstFile = dataLoading("s_1000_10.dat")
+	fmt.Println(len(graphsFirstFile))
+	var filteredGraphs = filterGraphs(graphsFirstFile)
+	fmt.Println(len(filteredGraphs))
+
+	/*
+		myGraphs := []Graph{
+			// Punkt und nicht paarweise verschieden
+			{Start: Point{20, 20}, End: Point{20, 20}},
+			{Start: Point{10, 10}, End: Point{10, 30}},
+			// Berühren
+			{Start: Point{0, 2}, End: Point{0.5, 2.5}},
+			{Start: Point{0, 2}, End: Point{-0.5, 2.5}},
+			// Zweifach Schnittpunkt in 0,0
+			{Start: Point{-1, -1}, End: Point{0.3, 0.3}},
+			{Start: Point{0.5, 1}, End: Point{-0.5, -1}},
+			{Start: Point{-1, 1}, End: Point{1, -1}},
+		}
 		var myFilteredgraphs = filterGraphs(myGraphs)
 		print(len(myFilteredgraphs))
-	*/
 
-	/*
-		start := time.Now()
-		// Call your function
-		var amount1 = amountOfInterceptingGraphs(graphsFirstFile)
-		// Get the time again and calculate the duration
-		duration := time.Since(start)
-		fmt.Println("In the first data set the amount of crossing graphs is ", amount1)
-		// Print the duration
-		fmt.Println("Time taken for first calculation:", duration)
+		/*
+			start := time.Now()
+			// Call your function
+			var amount1 = amountOfInterceptingGraphs(graphsFirstFile)
+			// Get the time again and calculate the duration
+			duration := time.Since(start)
+			fmt.Println("In the first data set the amount of crossing graphs is ", amount1)
+			// Print the duration
+			fmt.Println("Time taken for first calculation:", duration)
 
-		var graphsSecondFile = dataLoading("s_1000_10.dat")
-		start = time.Now()
-		// Call your function
-		var amount2 = amountOfInterceptingGraphs(graphsSecondFile)
-		// Get the time again and calculate the duration
-		duration = time.Since(start)
-		fmt.Println("In the second data set the amount of crossing graphs is ", amount2)
-		// Print the duration
-		fmt.Println("Time taken for second calculation:", duration)
+			var graphsSecondFile = dataLoading("s_1000_10.dat")
+			start = time.Now()
+			// Call your function
+			var amount2 = amountOfInterceptingGraphs(graphsSecondFile)
+			// Get the time again and calculate the duration
+			duration = time.Since(start)
+			fmt.Println("In the second data set the amount of crossing graphs is ", amount2)
+			// Print the duration
+			fmt.Println("Time taken for second calculation:", duration)
 
-		var graphsThirdFile = dataLoading("s_10000_1.dat")
-		start = time.Now()
-		// Call your function
-		var amount3 = amountOfInterceptingGraphs(graphsThirdFile)
-		// Get the time again and calculate the duration
-		duration = time.Since(start)
-		fmt.Println("In the third data set the amount of crossing graphs is ", amount3)
-		// Print the duration
-		fmt.Println("Time taken for third calculation:", duration)
+			var graphsThirdFile = dataLoading("s_10000_1.dat")
+			start = time.Now()
+			// Call your function
+			var amount3 = amountOfInterceptingGraphs(graphsThirdFile)
+			// Get the time again and calculate the duration
+			duration = time.Since(start)
+			fmt.Println("In the third data set the amount of crossing graphs is ", amount3)
+			// Print the duration
+			fmt.Println("Time taken for third calculation:", duration)
 
-		var graphsFourthFile = dataLoading("s_100000_1.dat")
-		start = time.Now()
-		// Call your function
-		var amount4 = amountOfInterceptingGraphs(graphsFourthFile)
-		// Get the time again and calculate the duration
-		duration = time.Since(start)
-		fmt.Println("In the fourth data set the amount of crossing graphs is ", amount4)
-		// Print the duration
-		fmt.Println("Time taken for fourth calculation:", duration)
+			var graphsFourthFile = dataLoading("s_100000_1.dat")
+			start = time.Now()
+			// Call your function
+			var amount4 = amountOfInterceptingGraphs(graphsFourthFile)
+			// Get the time again and calculate the duration
+			duration = time.Since(start)
+			fmt.Println("In the fourth data set the amount of crossing graphs is ", amount4)
+			// Print the duration
+			fmt.Println("Time taken for fourth calculation:", duration)
 
 	*/
 }
@@ -220,6 +218,25 @@ func isPointOnLine(p, q1, q2 Point) bool {
 		(q1.Y <= p.Y && p.Y <= q2.Y || q2.Y <= p.Y && p.Y <= q1.Y)
 }
 
+func getIntersectingPoint(graph1 Graph, graph2 Graph) Point {
+	x1, y1 := graph1.Start.X, graph1.Start.Y
+	x2, y2 := graph1.End.X, graph1.End.Y
+	x3, y3 := graph2.Start.X, graph2.Start.Y
+	x4, y4 := graph2.End.X, graph2.End.Y
+
+	denominator := (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4)
+	if denominator == 0 {
+		// Linien sind parallel, kein Schnittpunkt vorhanden
+		return Point{0, 0}
+	}
+
+	intersectionX := ((x1 * y2) - (y1*x2)*(x3-x4) - (x1-x2)*(x3*y4-y3*x4)) / denominator
+	intersectionY := ((x1 * y2) - (y1*x2)*(y3-y4) - (y1-y2)*(x3*y4-y3*x4)) / denominator
+
+	intersectionPoint := Point{X: intersectionX, Y: intersectionY}
+	return intersectionPoint
+
+}
 func dataLoading(filename string) []Graph {
 
 	// Open the .dat file
@@ -286,9 +303,8 @@ const (
 )
 
 type Event struct {
-	graph       Graph
-	eventType   EventType
-	intersectPt Point
+	x, y      float64
+	eventType EventType
 }
 
 type StatusNode struct {
@@ -300,7 +316,7 @@ type StatusNode struct {
 type EventQueue []Event
 
 func (eq EventQueue) Len() int           { return len(eq) }
-func (eq EventQueue) Less(i, j int) bool { return eq[i].intersectPt.X < eq[j].intersectPt.X }
+func (eq EventQueue) Less(i, j int) bool { return eq[i].x < eq[j].x }
 func (eq EventQueue) Swap(i, j int)      { eq[i], eq[j] = eq[j], eq[i] }
 
 func (eq *EventQueue) Push(x interface{}) {
@@ -315,45 +331,66 @@ func (eq *EventQueue) Pop() interface{} {
 	return x
 }
 
-type Status struct {
-	graphs []Graph
+type ByPoint []Event
+
+func (a ByPoint) Len() int           { return len(a) }
+func (a ByPoint) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ByPoint) Less(i, j int) bool { return a[i].x < a[j].x }
+
+func treatStartPoint(event Event) {
+	//TODO: add logic
+	fmt.Println("treatStartPoint", event)
+}
+func treatEndPoint(event Event) {
+	//TODO: add logic
+	fmt.Println("treatEndPoint", event)
+}
+func treatIntersectingPoint(event Event) {
+	//TODO: add logic
+	fmt.Println("treatIntersectingPoint", event)
 }
 
-func lineSweep(events EventQueue) int {
-	// Ereigniswarteschlange sortieren
-	heap.Init(&events)
+func lineSweep(graphs []Graph) {
+	// Initialisierung der Statusstruktur
+	events := make([]Event, 0, len(graphs)*2)
 
-	// Initialisierung der Statusstruktur (z. B. leeren Baum)
-	status := Status{
-		graphs: make([]Graph, 0),
+	// generate a pair of events for each graph
+	for _, g := range graphs {
+		startEvent := Event{x: g.Start.X, y: g.Start.Y, eventType: Start}
+		endEvent := Event{x: g.End.X, y: g.End.Y, eventType: End}
+		events = append(events, startEvent, endEvent)
 	}
-	intersectionCount := 0
+	// sort x-coordinates in ascending order
+	sort.Sort(ByPoint(events))
 
-	for events.Len() > 0 {
-		// Nächstes Ereignis aus der Warteschlange abrufen
-		event := heap.Pop(&events).(Event)
+	// intialize and fill eventQueue
+	eventQueue := make(EventQueue, 0)
+	heap.Init(&eventQueue)
+	for _, event := range events {
+		heap.Push(&eventQueue, event)
+	}
+
+	// actual line sweep
+	for eventQueue.Len() > 0 {
+		// return event with highest priority from the queue
+		event := heap.Pop(&eventQueue).(Event)
 
 		switch event.eventType {
 		case Start:
-			// Linie zur Statusstruktur hinzufügen
-			status.graphs = append(status.graphs, event.graph)
-			// TODO: Aktualisieren der Statusstruktur, z. B. Überprüfen auf Schnittpunkte
+			// Process Start event
+			// Add new segment to SL
+			treatStartPoint(event)
+			fmt.Println("Start Event", event)
 		case End:
-			// Linie aus der Statusstruktur entfernen
-			for i, line := range status.graphs {
-				if line == event.graph {
-					status.graphs = append(status.graphs[:i], status.graphs[i+1:]...)
-					break
-				}
-			}
-			// TODO: Aktualisieren der Statusstruktur, z. B. Überprüfen auf Schnittpunkte
+			// Process End event
+			// Remove segment form SL
+			treatEndPoint(event)
+			fmt.Println("End Event", event)
 		case Intersection:
-			// Behandlung von Schnittpunkten
-			intersectionCount++
-
-			// TODO: Implementieren der Schnittpunktsbehandlung
+			// Process Intersection event
+			// swap intersecting segments in SL
+			treatIntersectingPoint(event)
+			fmt.Println("Intersection Event", event)
 		}
 	}
-	return intersectionCount
-
 }
