@@ -338,12 +338,15 @@ func (a ByPoint) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a ByPoint) Less(i, j int) bool { return a[i].x < a[j].x }
 
 func treatStartPoint(event Event) {
+	//TODO: add logic
 	fmt.Println("treatStartPoint", event)
 }
 func treatEndPoint(event Event) {
+	//TODO: add logic
 	fmt.Println("treatEndPoint", event)
 }
 func treatIntersectingPoint(event Event) {
+	//TODO: add logic
 	fmt.Println("treatIntersectingPoint", event)
 }
 
