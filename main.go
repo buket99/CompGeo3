@@ -5,77 +5,280 @@ import (
 	"container/heap"
 	"fmt"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 )
 
 func main() {
 
-	var graphsFirstFile = dataLoading("s_1000_10.dat")
+	var graphsFirstFile = dataLoading("strecken/s_100000_1.dat")
 	fmt.Println(len(graphsFirstFile))
 	var filteredGraphs = filterGraphs(graphsFirstFile)
 	fmt.Println(len(filteredGraphs))
 
-	/*
-		myGraphs := []Graph{
-			// Punkt und nicht paarweise verschieden
-			{Start: Point{20, 20}, End: Point{20, 20}},
-			{Start: Point{10, 10}, End: Point{10, 30}},
-			// Berühren
-			{Start: Point{0, 2}, End: Point{0.5, 2.5}},
-			{Start: Point{0, 2}, End: Point{-0.5, 2.5}},
-			// Zweifach Schnittpunkt in 0,0
-			{Start: Point{-1, -1}, End: Point{0.3, 0.3}},
-			{Start: Point{0.5, 1}, End: Point{-0.5, -1}},
-			{Start: Point{-1, 1}, End: Point{1, -1}},
-		}
-		var myFilteredgraphs = filterGraphs(myGraphs)
-		print(len(myFilteredgraphs))
+	intersectionCounter := lineSweep(filteredGraphs)
 
-		/*
-			start := time.Now()
-			// Call your function
-			var amount1 = amountOfInterceptingGraphs(graphsFirstFile)
-			// Get the time again and calculate the duration
-			duration := time.Since(start)
-			fmt.Println("In the first data set the amount of crossing graphs is ", amount1)
-			// Print the duration
-			fmt.Println("Time taken for first calculation:", duration)
-
-			var graphsSecondFile = dataLoading("s_1000_10.dat")
-			start = time.Now()
-			// Call your function
-			var amount2 = amountOfInterceptingGraphs(graphsSecondFile)
-			// Get the time again and calculate the duration
-			duration = time.Since(start)
-			fmt.Println("In the second data set the amount of crossing graphs is ", amount2)
-			// Print the duration
-			fmt.Println("Time taken for second calculation:", duration)
-
-			var graphsThirdFile = dataLoading("s_10000_1.dat")
-			start = time.Now()
-			// Call your function
-			var amount3 = amountOfInterceptingGraphs(graphsThirdFile)
-			// Get the time again and calculate the duration
-			duration = time.Since(start)
-			fmt.Println("In the third data set the amount of crossing graphs is ", amount3)
-			// Print the duration
-			fmt.Println("Time taken for third calculation:", duration)
-
-			var graphsFourthFile = dataLoading("s_100000_1.dat")
-			start = time.Now()
-			// Call your function
-			var amount4 = amountOfInterceptingGraphs(graphsFourthFile)
-			// Get the time again and calculate the duration
-			duration = time.Since(start)
-			fmt.Println("In the fourth data set the amount of crossing graphs is ", amount4)
-			// Print the duration
-			fmt.Println("Time taken for fourth calculation:", duration)
-
-	*/
+	fmt.Println("Total Intersections:", intersectionCounter)
 }
 
+func dataLoading(filename string) []Graph {
+
+	// Open the .dat file
+	file, err := os.Open(filename)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+	}
+	defer file.Close()
+
+	// Create a scanner to read the file
+	scanner := bufio.NewScanner(file)
+
+	var graphs []Graph
+
+	// Loop through each line in the file
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Split the line into fields
+		fields := strings.Fields(line)
+
+		// Convert the fields to float64 values
+		var values []float64
+		for _, field := range fields {
+			value, err := strconv.ParseFloat(field, 64)
+			if err != nil {
+				fmt.Println("Error parsing float value:", err)
+			}
+			values = append(values, value)
+		}
+
+		graphs = append(graphs, Graph{Start: Point{X: values[0], Y: values[1]}, End: Point{X: values[2], Y: values[3]}})
+	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+	}
+	return graphs
+}
+
+type Graph struct {
+	Start, End Point
+}
+type Point struct {
+	X, Y float64
+}
+type EventType int
+
+type Event struct {
+	X    float64
+	Y    float64
+	Type EventType
+	Seg1 int
+	Seg2 int
+}
+type EventQueue struct {
+	Events []Event
+}
+
+func (eq *EventQueue) Len() int {
+	return len(eq.Events)
+}
+func (eq *EventQueue) Less(i, j int) bool {
+	if eq.Events[i].X == eq.Events[j].X {
+		return eq.Events[i].Type < eq.Events[j].Type
+	}
+	return eq.Events[i].X < eq.Events[j].X
+}
+func (eq *EventQueue) Swap(i, j int) {
+	eq.Events[i], eq.Events[j] = eq.Events[j], eq.Events[i]
+}
+func (eq *EventQueue) Push(x interface{}) {
+	eq.Events = append(eq.Events, x.(Event))
+}
+func (eq *EventQueue) Pop() interface{} {
+	old := eq.Events
+	n := len(old)
+	event := old[n-1]
+	eq.Events = old[:n-1]
+	return event
+}
+
+type BalancedTree struct {
+	SegmentMap map[int]int // Segment index -> position in balanced tree
+}
+
+func (bt *BalancedTree) Insert(segment int) {
+	bt.SegmentMap[segment] = 0 // Insert at position 0 (dummy value)
+}
+func (bt *BalancedTree) Delete(segment int) {
+	delete(bt.SegmentMap, segment)
+}
+func GetSuccessor(balancedTree *BalancedTree, segment int) int {
+	successor := -1
+	for s := range balancedTree.SegmentMap {
+		if s > segment && (successor == -1 || s < successor) {
+			successor = s
+		}
+	}
+	return successor
+}
+
+func GetPredecessor(balancedTree *BalancedTree, segment int) int {
+	predecessor := -1
+	for s := range balancedTree.SegmentMap {
+		if s < segment && s > predecessor {
+			predecessor = s
+		}
+	}
+	return predecessor
+}
+func GetNeighbor(balancedTree *BalancedTree, segment int) int {
+	if _, ok := balancedTree.SegmentMap[segment]; ok {
+		return segment
+	}
+	return -1
+}
+func lineSweep(filteredGraphs []Graph) int {
+	intersectionCounter := 0
+	segments := []Graph(filteredGraphs) // Example list of segments
+
+	eq := &EventQueue{}   // Create an empty event queue
+	bt := &BalancedTree{} // Create an empty balanced tree
+	bt.SegmentMap = make(map[int]int)
+
+	// Insert start and end events for each segment into the event queue
+	for i, segment := range segments {
+		startEvent := Event{Type: 0, X: segment.Start.X, Seg1: i}
+		endEvent := Event{Type: 1, X: segment.End.X, Seg1: i}
+		heap.Push(eq, startEvent)
+		heap.Push(eq, endEvent)
+	}
+
+	for eq.Len() > 0 {
+		event := heap.Pop(eq).(Event)
+
+		if event.Type == 0 { // Start-Event
+			bt.Insert(event.Seg1)
+			CheckForIntersect(eq, segments, event.Seg1, GetSuccessor(bt, event.Seg1)) // if intersection, it will be added to eq
+			CheckForIntersect(eq, segments, event.Seg1, GetPredecessor(bt, event.Seg1))
+		} else if event.Type == 1 { // End-Event
+			CheckForIntersect(eq, segments, GetPredecessor(bt, event.Seg1), GetSuccessor(bt, event.Seg1))
+			bt.Delete(event.Seg1)
+		} else if event.Type == 2 { // Intersection-Event
+			intersectionCounter++
+			fmt.Printf("Segments %d and %d intersect\n", event.Seg1, event.Seg2)
+			bt.Delete(event.Seg1)
+			bt.Delete(event.Seg2)
+			// reinsert both so they are in the correct order in the tree
+			bt.Insert(event.Seg1)
+			bt.Insert(event.Seg2)
+			CheckForIntersect(eq, segments, event.Seg1, GetNeighbor(bt, event.Seg1))
+			CheckForIntersect(eq, segments, event.Seg2, GetNeighbor(bt, event.Seg2))
+		}
+	}
+	return intersectionCounter
+}
+
+func CheckForIntersect(eq *EventQueue, segments []Graph, s1, s2 int) {
+	if s1 != -1 && s2 != -1 {
+		segment1 := segments[s1]
+		segment2 := segments[s2]
+		test := areIntercepting(segment1, segment2)
+		if test == true {
+			intersectionPoint, found := findIntersectionPoint(segment1, segment2) // You need to implement this function
+			if found {
+				fmt.Println(segment1, segment2)
+				crossEvent := Event{Type: 2, X: intersectionPoint.X, Y: intersectionPoint.Y, Seg1: s1, Seg2: s2}
+				heap.Push(eq, crossEvent)
+			}
+		}
+	}
+}
+
+func areIntercepting(graph1 Graph, graph2 Graph) bool {
+	// Bestimme die Punkte P und Q von Graph 1
+	p1 := Point{graph1.Start.X, graph1.Start.Y}
+	p2 := Point{graph1.End.X, graph1.End.Y}
+	// Bestimme die Punkte R1 und R2 von Graph 2
+	q1 := Point{graph2.Start.X, graph2.Start.Y}
+	q2 := Point{graph2.End.X, graph2.End.Y}
+
+	if ccw(p1, p2, q1) == 0 && ccw(p1, p2, q2) == 0 {
+		return isPointOnLine2(p1, p2, q1) || isPointOnLine2(p1, p2, q2)
+	} else if ccw(p1, p2, q1)*ccw(p1, p2, q2) <= 0 && ccw(q1, q2, p1)*ccw(q1, q2, p2) <= 0 {
+		return true
+	}
+	return false
+}
+
+func isPointOnLine2(p1, p2, q Point) bool {
+	// Überprüfung, ob q auf der Strecke p1-p2 liegt
+	if (q.X >= p1.X && q.X <= p2.X) || (q.X >= p2.X && q.X <= p1.X) {
+		return true
+	}
+	return false
+}
+
+// Überprüft, ob sich zwei Graphen echt schneiden.
+func doGraphsIntersect(graph1, graph2 Graph) bool {
+	p1 := graph1.Start
+	p2 := graph1.End
+	// Bestimme die Punkte R1 und R2 von Graph 2
+	q1 := graph2.Start
+	q2 := graph2.End
+
+	if ccw(p1, p2, q1)*ccw(p1, p2, q2) <= 0 && ccw(q1, q2, p1)*ccw(q1, q2, p2) <= 0 {
+		return true
+	}
+	return false
+}
+
+func doGraphsTouch(graph1, graph2 Graph) bool {
+	// Extract the start and end points of Graph 1
+	p1 := graph1.Start
+	p2 := graph1.End
+	// Extract the start and end points of Graph 2
+	q1 := graph2.Start
+	q2 := graph2.End
+
+	// Check if the start or end point of Graph 1 lies on Graph 2
+	if isPointOnLine(p1, q1, q2) || isPointOnLine(p2, q1, q2) {
+		return true
+	}
+
+	// Check if the start or end point of Graph 2 lies on Graph 1
+	if isPointOnLine(q1, p1, p2) || isPointOnLine(q2, p1, p2) {
+		return true
+	}
+
+	return false
+}
+func isPointOnLine(p, q1, q2 Point) bool {
+	// Check if point p lies on the line segment q1-q2
+	return (ccw(p, q1, q2) == 0) && (q1.X <= p.X && p.X <= q2.X || q2.X <= p.X && p.X <= q1.X) &&
+		(q1.Y <= p.Y && p.Y <= q2.Y || q2.Y <= p.Y && p.Y <= q1.Y)
+}
+func findIntersectionPoint(graph1, graph2 Graph) (Point, bool) {
+	p1 := graph1.Start
+	p2 := graph1.End
+	q1 := graph2.Start
+	q2 := graph2.End
+
+	// Calculate the slopes of the line segments
+	m1 := (p2.Y - p1.Y) / (p2.X - p1.X)
+	m2 := (q2.Y - q1.Y) / (q2.X - q1.X)
+
+	// Check if the line segments are parallel
+	if m1 == m2 {
+		return Point{}, false
+	}
+
+	// Calculate the intersection point coordinates
+	intersectionX := (m1*p1.X - m2*q1.X + q1.Y - p1.Y) / (m1 - m2)
+	intersectionY := m1*(intersectionX-p1.X) + p1.Y
+
+	return Point{X: intersectionX, Y: intersectionY}, true
+}
 func filterGraphs(graphs []Graph) []Graph {
 	newGraphs := make([]Graph, 0)
 	filteredGraphs := make([]Graph, 0)
@@ -139,32 +342,6 @@ func filterGraphs(graphs []Graph) []Graph {
 
 	return filteredGraphs
 }
-func findIntersectionPoint(graph1, graph2 Graph) (Point, bool) {
-	p1 := graph1.Start
-	p2 := graph1.End
-	q1 := graph2.Start
-	q2 := graph2.End
-
-	// Calculate the slopes of the line segments
-	m1 := (p2.Y - p1.Y) / (p2.X - p1.X)
-	m2 := (q2.Y - q1.Y) / (q2.X - q1.X)
-
-	// Check if the line segments are parallel
-	if m1 == m2 {
-		return Point{}, false
-	}
-
-	// Calculate the intersection point coordinates
-	intersectionX := (m1*p1.X - m2*q1.X + q1.Y - p1.Y) / (m1 - m2)
-	intersectionY := m1*(intersectionX-p1.X) + p1.Y
-
-	return Point{X: intersectionX, Y: intersectionY}, true
-}
-
-// Berechnet das Kreuzprodukt zweier Vektoren.
-func crossProduct(p1, p2, p3 Point) float64 {
-	return (p2.X-p1.X)*(p3.Y-p1.Y) - (p2.Y-p1.Y)*(p3.X-p1.X)
-}
 
 // Überprüft die Orientierung von drei Punkten im Uhrzeigersinn, gegen den Uhrzeigersinn oder kollinear.
 func ccw(p1, p2, p3 Point) int {
@@ -176,221 +353,6 @@ func ccw(p1, p2, p3 Point) int {
 	}
 	return 0 // Kollinear
 }
-
-// Überprüft, ob sich zwei Graphen echt schneiden.
-func doGraphsIntersect(graph1, graph2 Graph) bool {
-	p1 := graph1.Start
-	p2 := graph1.End
-	// Bestimme die Punkte R1 und R2 von Graph 2
-	q1 := graph2.Start
-	q2 := graph2.End
-
-	if ccw(p1, p2, q1)*ccw(p1, p2, q2) <= 0 && ccw(q1, q2, p1)*ccw(q1, q2, p2) <= 0 {
-		return true
-	}
-	return false
-}
-
-func doGraphsTouch(graph1, graph2 Graph) bool {
-	// Extract the start and end points of Graph 1
-	p1 := graph1.Start
-	p2 := graph1.End
-	// Extract the start and end points of Graph 2
-	q1 := graph2.Start
-	q2 := graph2.End
-
-	// Check if the start or end point of Graph 1 lies on Graph 2
-	if isPointOnLine(p1, q1, q2) || isPointOnLine(p2, q1, q2) {
-		return true
-	}
-
-	// Check if the start or end point of Graph 2 lies on Graph 1
-	if isPointOnLine(q1, p1, p2) || isPointOnLine(q2, p1, p2) {
-		return true
-	}
-
-	return false
-}
-
-func isPointOnLine(p, q1, q2 Point) bool {
-	// Check if point p lies on the line segment q1-q2
-	return (ccw(p, q1, q2) == 0) && (q1.X <= p.X && p.X <= q2.X || q2.X <= p.X && p.X <= q1.X) &&
-		(q1.Y <= p.Y && p.Y <= q2.Y || q2.Y <= p.Y && p.Y <= q1.Y)
-}
-
-func getIntersectingPoint(graph1 Graph, graph2 Graph) Point {
-	x1, y1 := graph1.Start.X, graph1.Start.Y
-	x2, y2 := graph1.End.X, graph1.End.Y
-	x3, y3 := graph2.Start.X, graph2.Start.Y
-	x4, y4 := graph2.End.X, graph2.End.Y
-
-	denominator := (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4)
-	if denominator == 0 {
-		// Linien sind parallel, kein Schnittpunkt vorhanden
-		return Point{0, 0}
-	}
-
-	intersectionX := ((x1 * y2) - (y1*x2)*(x3-x4) - (x1-x2)*(x3*y4-y3*x4)) / denominator
-	intersectionY := ((x1 * y2) - (y1*x2)*(y3-y4) - (y1-y2)*(x3*y4-y3*x4)) / denominator
-
-	intersectionPoint := Point{X: intersectionX, Y: intersectionY}
-	return intersectionPoint
-
-}
-func dataLoading(filename string) []Graph {
-
-	// Open the .dat file
-	file, err := os.Open("strecken/" + filename)
-	if err != nil {
-		fmt.Println("Error opening file:", err)
-	}
-	defer file.Close()
-
-	// Create a scanner to read the file
-	scanner := bufio.NewScanner(file)
-
-	var graphs []Graph
-
-	// Loop through each line in the file
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		// Split the line into fields
-		fields := strings.Fields(line)
-
-		// Convert the fields to float64 values
-		var values []float64
-		for _, field := range fields {
-			value, err := strconv.ParseFloat(field, 64)
-			if err != nil {
-				fmt.Println("Error parsing float value:", err)
-			}
-			values = append(values, value)
-		}
-
-		graphs = append(graphs, Graph{Start: Point{X: values[0], Y: values[1]}, End: Point{X: values[2], Y: values[3]}})
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading file:", err)
-	}
-	return graphs
-}
-
-func amountOfInterceptingGraphs(graphs []Graph) int {
-	amount := 0
-	// add compgeo1
-	// add line sweep algorithm
-	return amount
-}
-
-type Graph struct {
-	Start Point
-	End   Point
-}
-
-type Point struct {
-	X float64
-	Y float64
-}
-
-type EventType int
-
-const (
-	Start EventType = iota
-	End
-	Intersection
-)
-
-type Event struct {
-	x, y      float64
-	eventType EventType
-}
-
-type StatusNode struct {
-	line  Graph
-	left  *StatusNode
-	right *StatusNode
-}
-
-type EventQueue []Event
-
-func (eq EventQueue) Len() int           { return len(eq) }
-func (eq EventQueue) Less(i, j int) bool { return eq[i].x < eq[j].x }
-func (eq EventQueue) Swap(i, j int)      { eq[i], eq[j] = eq[j], eq[i] }
-
-func (eq *EventQueue) Push(x interface{}) {
-	*eq = append(*eq, x.(Event))
-}
-
-func (eq *EventQueue) Pop() interface{} {
-	old := *eq
-	n := len(old)
-	x := old[n-1]
-	*eq = old[0 : n-1]
-	return x
-}
-
-type ByPoint []Event
-
-func (a ByPoint) Len() int           { return len(a) }
-func (a ByPoint) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByPoint) Less(i, j int) bool { return a[i].x < a[j].x }
-
-func treatStartPoint(event Event) {
-	//TODO: add logic
-	fmt.Println("treatStartPoint", event)
-}
-func treatEndPoint(event Event) {
-	//TODO: add logic
-	fmt.Println("treatEndPoint", event)
-}
-func treatIntersectingPoint(event Event) {
-	//TODO: add logic
-	fmt.Println("treatIntersectingPoint", event)
-}
-
-func lineSweep(graphs []Graph) {
-	// Initialisierung der Statusstruktur
-	events := make([]Event, 0, len(graphs)*2)
-
-	// generate a pair of events for each graph
-	for _, g := range graphs {
-		startEvent := Event{x: g.Start.X, y: g.Start.Y, eventType: Start}
-		endEvent := Event{x: g.End.X, y: g.End.Y, eventType: End}
-		events = append(events, startEvent, endEvent)
-	}
-	// sort x-coordinates in ascending order
-	sort.Sort(ByPoint(events))
-
-	// intialize and fill eventQueue
-	eventQueue := make(EventQueue, 0)
-	heap.Init(&eventQueue)
-	for _, event := range events {
-		heap.Push(&eventQueue, event)
-	}
-
-	// actual line sweep
-	for eventQueue.Len() > 0 {
-		// return event with highest priority from the queue
-		event := heap.Pop(&eventQueue).(Event)
-
-		switch event.eventType {
-		case Start:
-			// Process Start event
-			// Add new segment to SL
-			treatStartPoint(event)
-			fmt.Println("Start Event", event)
-		case End:
-			// Process End event
-			// Remove segment form SL
-			treatEndPoint(event)
-			fmt.Println("End Event", event)
-		case Intersection:
-			// Process Intersection event
-			// swap intersecting segments in SL
-			treatIntersectingPoint(event)
-			fmt.Println("Intersection Event", event)
-		}
-	}
+func crossProduct(p1, p2, p3 Point) float64 {
+	return (p2.X-p1.X)*(p3.Y-p1.Y) - (p2.Y-p1.Y)*(p3.X-p1.X)
 }
