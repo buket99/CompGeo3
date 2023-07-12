@@ -11,7 +11,7 @@ import (
 
 func main() {
 
-	var graphsFirstFile = dataLoading("strecken/s_100000_1.dat")
+	var graphsFirstFile = dataLoading("strecken/s_1000_1.dat")
 	fmt.Println(len(graphsFirstFile))
 	var filteredGraphs = filterGraphs(graphsFirstFile)
 	fmt.Println(len(filteredGraphs))
@@ -51,8 +51,9 @@ func dataLoading(filename string) []Graph {
 			}
 			values = append(values, value)
 		}
+		id := len(graphs)
 
-		graphs = append(graphs, Graph{Start: Point{X: values[0], Y: values[1]}, End: Point{X: values[2], Y: values[3]}})
+		graphs = append(graphs, Graph{ID: id, Start: Point{X: values[0], Y: values[1]}, End: Point{X: values[2], Y: values[3]}})
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -62,6 +63,7 @@ func dataLoading(filename string) []Graph {
 }
 
 type Graph struct {
+	ID         int
 	Start, End Point
 }
 type Point struct {
@@ -140,11 +142,17 @@ func GetNeighbor(balancedTree *BalancedTree, segment int) int {
 }
 func lineSweep(filteredGraphs []Graph) int {
 	intersectionCounter := 0
-	segments := []Graph(filteredGraphs) // Example list of segments
+	segments := []Graph(filteredGraphs)
+	defaultGraph := Graph{
+		ID:    -1,
+		Start: Point{},
+		End:   Point{},
+	}
+	processedEvents := make(map[Event]bool) // Map to track processed events
 
-	eq := &EventQueue{}   // Create an empty event queue
-	bt := &BalancedTree{} // Create an empty balanced tree
-	bt.SegmentMap = make(map[int]int)
+	eq := &EventQueue{} // Create an empty event queue
+	root := &Node{}     // Create an empty AVL tree root
+	root = nil          // Initialize as nil since the tree is initially empty
 
 	// Insert start and end events for each segment into the event queue
 	for i, segment := range segments {
@@ -156,42 +164,49 @@ func lineSweep(filteredGraphs []Graph) int {
 
 	for eq.Len() > 0 {
 		event := heap.Pop(eq).(Event)
+		if processedEvents[event] {
+			continue // Skip the event if already processed
+		}
+		processedEvents[event] = true // Mark the event as processed
 
 		if event.Type == 0 { // Start-Event
-			bt.Insert(event.Seg1)
-			CheckForIntersect(eq, segments, event.Seg1, GetSuccessor(bt, event.Seg1)) // if intersection, it will be added to eq
-			CheckForIntersect(eq, segments, event.Seg1, GetPredecessor(bt, event.Seg1))
+			root = insertNode(root, segments[event.Seg1])
+			CheckForIntersect(eq, segments[event.Seg1], getSuccessor(root, segments[event.Seg1]), getPredecessor(root, segments[event.Seg1]))
+			CheckForIntersect(eq, segments[event.Seg1], getPredecessor(root, segments[event.Seg1]), defaultGraph) // Pass nil for successor since it's the start event
 		} else if event.Type == 1 { // End-Event
-			CheckForIntersect(eq, segments, GetPredecessor(bt, event.Seg1), GetSuccessor(bt, event.Seg1))
-			bt.Delete(event.Seg1)
+			CheckForIntersect(eq, segments[event.Seg1], getPredecessor(root, segments[event.Seg1]), getSuccessor(root, segments[event.Seg1]))
+			root = deleteNode(root, segments[event.Seg1])
 		} else if event.Type == 2 { // Intersection-Event
 			intersectionCounter++
 			fmt.Printf("Segments %d and %d intersect\n", event.Seg1, event.Seg2)
-			bt.Delete(event.Seg1)
-			bt.Delete(event.Seg2)
+			root = deleteNode(root, segments[event.Seg1])
+			root = deleteNode(root, segments[event.Seg2])
 			// reinsert both so they are in the correct order in the tree
-			bt.Insert(event.Seg1)
-			bt.Insert(event.Seg2)
-			CheckForIntersect(eq, segments, event.Seg1, GetNeighbor(bt, event.Seg1))
-			CheckForIntersect(eq, segments, event.Seg2, GetNeighbor(bt, event.Seg2))
+			root = insertNode(root, segments[event.Seg1])
+			root = insertNode(root, segments[event.Seg2])
+			preSeg1 := getPredecessor(root, segments[event.Seg1])
+			sucSeg1 := getSuccessor(root, segments[event.Seg1])
+			preSeg2 := getPredecessor(root, segments[event.Seg2])
+			sucSeg2 := getSuccessor(root, segments[event.Seg2])
+			CheckForIntersect(eq, segments[event.Seg1], preSeg1, sucSeg1)
+			CheckForIntersect(eq, segments[event.Seg2], preSeg2, sucSeg2)
 		}
+
 	}
 	return intersectionCounter
 }
 
-func CheckForIntersect(eq *EventQueue, segments []Graph, s1, s2 int) {
-	if s1 != -1 && s2 != -1 {
-		segment1 := segments[s1]
-		segment2 := segments[s2]
-		test := areIntercepting(segment1, segment2)
-		if test == true {
-			intersectionPoint, found := findIntersectionPoint(segment1, segment2) // You need to implement this function
-			if found {
-				fmt.Println(segment1, segment2)
-				crossEvent := Event{Type: 2, X: intersectionPoint.X, Y: intersectionPoint.Y, Seg1: s1, Seg2: s2}
-				heap.Push(eq, crossEvent)
-			}
-		}
+func CheckForIntersect(eq *EventQueue, seg1 Graph, preSeg Graph, sucSeg Graph) {
+	if preSeg.ID != -1 && areIntercepting(seg1, preSeg) {
+		fmt.Println(seg1, preSeg)
+		crossEvent := Event{Type: 2, X: -1, Seg1: seg1.ID, Seg2: preSeg.ID}
+		heap.Push(eq, crossEvent)
+	}
+
+	if sucSeg.ID != -1 && areIntercepting(seg1, sucSeg) {
+		fmt.Println(seg1, sucSeg)
+		crossEvent := Event{Type: 2, X: -1, Seg1: seg1.ID, Seg2: sucSeg.ID}
+		heap.Push(eq, crossEvent)
 	}
 }
 
@@ -355,4 +370,210 @@ func ccw(p1, p2, p3 Point) int {
 }
 func crossProduct(p1, p2, p3 Point) float64 {
 	return (p2.X-p1.X)*(p3.Y-p1.Y) - (p2.Y-p1.Y)*(p3.X-p1.X)
+}
+
+type Node struct {
+	key    Graph
+	left   *Node
+	right  *Node
+	height int
+	index  int // index of the graph in the segments array
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// Calculates the height of the node
+func height(N *Node) int {
+	if N == nil {
+		return 0
+	}
+	return N.height
+}
+
+// Performs a right rotation on the node
+func rightRotate(y *Node) *Node {
+	x := y.left
+	T2 := x.right
+	x.right = y
+	y.left = T2
+	y.height = max(height(y.left), height(y.right)) + 1
+	x.height = max(height(x.left), height(x.right)) + 1
+	return x
+}
+
+// Performs a left rotation on the node
+func leftRotate(x *Node) *Node {
+	y := x.right
+	T2 := y.left
+	y.left = x
+	x.right = T2
+	x.height = max(height(x.left), height(x.right)) + 1
+	y.height = max(height(y.left), height(y.right)) + 1
+	return y
+}
+
+// Calculates the balance factor
+// of the node
+func getBalanceFactor(N *Node) int {
+	if N == nil {
+		return 0
+	}
+	return height(N.left) - height(N.right)
+}
+
+func newNode(graph Graph) *Node {
+	node := &Node{key: graph}
+	node.left = nil
+	node.right = nil
+	node.height = 1
+	return node
+}
+
+func insertNode(node *Node, graph Graph) *Node {
+	if node == nil {
+		return newNode(graph)
+	}
+	if graph.Start.Y < node.key.Start.Y {
+		node.left = insertNode(node.left, graph)
+	} else if graph.Start.Y > node.key.Start.Y {
+		node.right = insertNode(node.right, graph)
+	} else {
+		return node
+	}
+
+	node.height = 1 + max(height(node.left), height(node.right))
+	balanceFactor := getBalanceFactor(node)
+
+	if balanceFactor > 1 {
+		if graph.Start.Y < node.left.key.Start.Y {
+			return rightRotate(node)
+		} else if graph.Start.Y > node.left.key.Start.Y {
+			node.left = leftRotate(node.left)
+			return rightRotate(node)
+		}
+	}
+
+	if balanceFactor < -1 {
+		if graph.Start.Y > node.right.key.Start.Y {
+			return leftRotate(node)
+		} else if graph.Start.Y < node.right.key.Start.Y {
+			node.right = rightRotate(node.right)
+			return leftRotate(node)
+		}
+	}
+
+	return node
+}
+func deleteNode(root *Node, graph Graph) *Node {
+
+	if root == nil {
+		return root
+	}
+	if graph.Start.Y < root.key.Start.Y {
+		root.left = deleteNode(root.left, graph)
+	} else if graph.Start.Y > root.key.Start.Y {
+		root.right = deleteNode(root.right, graph)
+	} else {
+		if root.left == nil || root.right == nil {
+			temp := root.left
+			if temp == nil {
+				temp = root.right
+			}
+			if temp == nil {
+				temp = root
+				root = nil
+			} else {
+				*root = *temp
+			}
+		} else {
+			temp := nodeWithMinimumValue(root.right)
+			root.key = temp.key
+			root.right = deleteNode(root.right, temp.key)
+		}
+	}
+	if root == nil {
+		return root
+	}
+	root.height = 1 + max(height(root.left), height(root.right))
+	balanceFactor := getBalanceFactor(root)
+
+	if balanceFactor > 1 {
+		if getBalanceFactor(root.left) >= 0 {
+			return rightRotate(root)
+		} else {
+			root.left = leftRotate(root.left)
+			return rightRotate(root)
+		}
+	}
+	if balanceFactor < -1 {
+		if getBalanceFactor(root.right) <= 0 {
+			return leftRotate(root)
+		} else {
+			root.right = rightRotate(root.right)
+			return leftRotate(root)
+		}
+	}
+	return root
+}
+
+func getPredecessor(node *Node, key Graph) Graph {
+	var predecessor Graph
+
+	for node != nil {
+		if key.Start.X < node.key.Start.X {
+			node = node.left
+		} else if key.Start.X > node.key.Start.X {
+			predecessor = node.key
+			node = node.right
+		} else {
+			if node.left != nil {
+				predecessor = nodeWithMaximumValue(node.left).key
+			}
+			break
+		}
+	}
+
+	return predecessor
+}
+
+func getSuccessor(node *Node, key Graph) Graph {
+	var successor Graph
+
+	for node != nil {
+		if key.Start.X < node.key.Start.X {
+			successor = node.key
+			node = node.left
+		} else if key.Start.X > node.key.Start.X {
+			node = node.right
+		} else {
+			if node.right != nil {
+				successor = nodeWithMinimumValue(node.right).key
+			}
+			break
+		}
+	}
+
+	return successor
+}
+
+// Fetches the Node with maximum
+// value from the AVL tree
+func nodeWithMaximumValue(node *Node) *Node {
+	current := node
+	for current.right != nil {
+		current = current.right
+	}
+	return current
+}
+func nodeWithMinimumValue(node *Node) *Node {
+	current := node
+	for current.left != nil {
+		current = current.left
+	}
+	return current
 }
