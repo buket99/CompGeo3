@@ -39,9 +39,10 @@ func main() {
 	fmt.Println("Time taken for new calculation:", duration2)
 
 	var graphsFile3 = dataLoading("strecken/s_100000_1.dat")
-	var filteredGraphs3 = filterGraphs(graphsFile3)
+	// filtering gives a timeout exception
+	// var filteredGraphs3 = filterGraphs(graphsFile3)
 	start3 := time.Now()
-	intersectionCounter3 := lineSweep(filteredGraphs3)
+	intersectionCounter3 := lineSweep(graphsFile3)
 	duration3 := time.Since(start3)
 	fmt.Println("Total Intersections in the file s_100000_1:", intersectionCounter3)
 	fmt.Println("Time taken for new calculation:", duration3)
