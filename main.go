@@ -13,7 +13,7 @@ import (
 
 func main() {
 
-	var graphsFirstFile = dataLoading("strecken/s_1000_10.dat")
+	var graphsFirstFile = dataLoading("strecken/s_1000_1.dat")
 	fmt.Println(len(graphsFirstFile))
 	var filteredGraphs = filterGraphs(graphsFirstFile)
 	fmt.Println(len(filteredGraphs))
@@ -107,9 +107,13 @@ func (eq *EventQueue) Pop() interface{} {
 	return event
 }
 
-// SortByX sorts the EventQueue by the X value of each event
 func (eq *EventQueue) SortByX() {
 	sort.SliceStable(eq.Events, func(i, j int) bool {
+		// If the x values are equal, sort by the y value
+		if eq.Events[i].X == eq.Events[j].X {
+			return eq.Events[i].Y < eq.Events[j].Y
+		}
+		// Otherwise sort by the x value
 		return eq.Events[i].X < eq.Events[j].X
 	})
 }
@@ -132,8 +136,8 @@ func lineSweep(filteredGraphs []Graph) int {
 	for i, segment := range segments {
 		startEvent := Event{Type: 0, X: segment.Start.X, Seg1: i}
 		endEvent := Event{Type: 1, X: segment.End.X, Seg1: i}
-		heap.Push(eq, startEvent)
-		heap.Push(eq, endEvent)
+		heap.Push(eq, endEvent)   // Push end event first
+		heap.Push(eq, startEvent) // Push start event second
 	}
 
 	eq.SortByX()
@@ -150,21 +154,23 @@ func lineSweep(filteredGraphs []Graph) int {
 			CheckForIntersect(eq, segments[event.Seg1], getSuccessor(root, segments[event.Seg1], event.X), getPredecessor(root, segments[event.Seg1], event.X))
 			CheckForIntersect(eq, segments[event.Seg1], getPredecessor(root, segments[event.Seg1], event.X), defaultGraph) // Pass nil for successor since it's the start event
 		} else if event.Type == 1 { // End-Event
-			root = deleteNode(root, segments[event.Seg1])
-		} else if event.Type == 2 { // Intersection-Event
-			intersectionCounter++
-			fmt.Printf("Segments %d and %d intersect\n", event.Seg1, event.Seg2)
-			root = deleteNode(root, segments[event.Seg1])
-			root = deleteNode(root, segments[event.Seg2])
-			// reinsert both so they are in the correct order in the tree
-			root = insertNode(root, segments[event.Seg1], event.X)
-			root = insertNode(root, segments[event.Seg2], event.X)
-			preSeg1 := getPredecessor(root, segments[event.Seg1], event.X)
-			sucSeg1 := getSuccessor(root, segments[event.Seg1], event.X)
-			preSeg2 := getPredecessor(root, segments[event.Seg2], event.X)
-			sucSeg2 := getSuccessor(root, segments[event.Seg2], event.X)
-			CheckForIntersect(eq, segments[event.Seg1], preSeg1, sucSeg1)
-			CheckForIntersect(eq, segments[event.Seg2], preSeg2, sucSeg2)
+			root = deleteNode(root, segments[event.Seg1], event.X)
+		} else if event.Type == 2 {
+			if !processedEvents[Event{Type: 2, X: event.X, Seg1: event.Seg2, Seg2: event.Seg1}] { // Check if the symmetric intersection event has been processed
+				intersectionCounter++
+				fmt.Printf("Segments %d and %d intersect\n", event.Seg1, event.Seg2)
+				root = deleteNode(root, segments[event.Seg1], event.X)
+				root = deleteNode(root, segments[event.Seg2], event.X)
+				// reinsert both so they are in the correct order in the tree
+				root = insertNode(root, segments[event.Seg1], event.X)
+				root = insertNode(root, segments[event.Seg2], event.X)
+				preSeg1 := getPredecessor(root, segments[event.Seg1], event.X)
+				sucSeg1 := getSuccessor(root, segments[event.Seg1], event.X)
+				preSeg2 := getPredecessor(root, segments[event.Seg2], event.X)
+				sucSeg2 := getSuccessor(root, segments[event.Seg2], event.X)
+				CheckForIntersect(eq, segments[event.Seg1], preSeg1, sucSeg1)
+				CheckForIntersect(eq, segments[event.Seg2], preSeg2, sucSeg2)
+			}
 		}
 
 	}
@@ -211,15 +217,15 @@ func getSuccessor(node *Node, key Graph, sweepX float64) Graph {
 }
 
 func CheckForIntersect(eq *EventQueue, seg1 Graph, preSeg Graph, sucSeg Graph) {
-	if preSeg.ID != -1 && areIntercepting(seg1, preSeg) {
+	if preSeg.ID != -1 && preSeg.ID != seg1.ID && areIntercepting(seg1, preSeg) {
 		intersectionPoint, _ := findIntersectionPoint(seg1, preSeg)
-		crossEvent := Event{Type: 2, X: intersectionPoint.X, Y: intersectionPoint.Y, Seg1: seg1.ID, Seg2: preSeg.ID}
+		crossEvent := Event{Type: 2, X: intersectionPoint.X, Seg1: seg1.ID, Seg2: preSeg.ID}
 		heap.Push(eq, crossEvent)
 	}
 
-	if sucSeg.ID != -1 && areIntercepting(seg1, sucSeg) {
+	if sucSeg.ID != -1 && sucSeg.ID != seg1.ID && areIntercepting(seg1, sucSeg) {
 		intersectionPoint, _ := findIntersectionPoint(seg1, sucSeg)
-		crossEvent := Event{Type: 2, X: intersectionPoint.X, Y: intersectionPoint.Y, Seg1: seg1.ID, Seg2: sucSeg.ID}
+		crossEvent := Event{Type: 2, X: intersectionPoint.X, Seg1: seg1.ID, Seg2: sucSeg.ID}
 		heap.Push(eq, crossEvent)
 	}
 }
@@ -489,31 +495,23 @@ func insertNode(node *Node, graph Graph, sweepX float64) *Node {
 
 	return node
 }
-func deleteNode(root *Node, graph Graph) *Node {
-
+func deleteNode(root *Node, graph Graph, sweepX float64) *Node {
 	if root == nil {
 		return root
 	}
-	if graph.Start.Y < root.key.Start.Y {
-		root.left = deleteNode(root.left, graph)
-	} else if graph.Start.Y > root.key.Start.Y {
-		root.right = deleteNode(root.right, graph)
+	if graph.getYatX(sweepX) < root.key.getYatX(sweepX) {
+		root.left = deleteNode(root.left, graph, sweepX)
+	} else if graph.getYatX(sweepX) > root.key.getYatX(sweepX) {
+		root.right = deleteNode(root.right, graph, sweepX)
 	} else {
-		if root.left == nil || root.right == nil {
-			temp := root.left
-			if temp == nil {
-				temp = root.right
-			}
-			if temp == nil {
-				temp = root
-				root = nil
-			} else {
-				*root = *temp
-			}
+		if root.left == nil {
+			return root.right
+		} else if root.right == nil {
+			return root.left
 		} else {
 			temp := nodeWithMinimumValue(root.right)
 			root.key = temp.key
-			root.right = deleteNode(root.right, temp.key)
+			root.right = deleteNode(root.right, temp.key, sweepX)
 		}
 	}
 	if root == nil {
