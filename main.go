@@ -155,10 +155,13 @@ func lineSweep(filteredGraphs []Graph) int {
 			CheckForIntersect(eq, segments[event.Seg1], getPredecessor(root, segments[event.Seg1], event.X), defaultGraph) // Pass nil for successor since it's the start event
 		} else if event.Type == 1 { // End-Event
 			root = deleteNode(root, segments[event.Seg1], event.X)
+			CheckForIntersect(eq, segments[event.Seg1], getSuccessor(root, segments[event.Seg1], event.X), getPredecessor(root, segments[event.Seg1], event.X))
 		} else if event.Type == 2 {
 			if !processedEvents[Event{Type: 2, X: event.X, Seg1: event.Seg2, Seg2: event.Seg1}] { // Check if the symmetric intersection event has been processed
 				intersectionCounter++
-				fmt.Printf("Segments %d and %d intersect\n", event.Seg1, event.Seg2)
+				seg1 := segments[event.Seg1]
+				seg2 := segments[event.Seg2]
+				fmt.Printf("Segments %d and %d intersect - %d (%.5f %.5f %.5f %.5f) and %d (%.5f %.5f %.5f %.5f)\n", seg1.ID, seg2.ID, seg1.ID, seg1.Start.X, seg1.Start.Y, seg1.End.X, seg1.End.Y, seg2.ID, seg2.Start.X, seg2.Start.Y, seg2.End.X, seg2.End.Y)
 				root = deleteNode(root, segments[event.Seg1], event.X)
 				root = deleteNode(root, segments[event.Seg2], event.X)
 				// reinsert both so they are in the correct order in the tree
