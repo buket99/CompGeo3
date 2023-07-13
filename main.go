@@ -4,14 +4,16 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
+	"math"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 )
 
 func main() {
 
-	var graphsFirstFile = dataLoading("strecken/s_1000_1.dat")
+	var graphsFirstFile = dataLoading("strecken/s_1000_10.dat")
 	fmt.Println(len(graphsFirstFile))
 	var filteredGraphs = filterGraphs(graphsFirstFile)
 	fmt.Println(len(filteredGraphs))
@@ -105,41 +107,13 @@ func (eq *EventQueue) Pop() interface{} {
 	return event
 }
 
-type BalancedTree struct {
-	SegmentMap map[int]int // Segment index -> position in balanced tree
+// SortByX sorts the EventQueue by the X value of each event
+func (eq *EventQueue) SortByX() {
+	sort.SliceStable(eq.Events, func(i, j int) bool {
+		return eq.Events[i].X < eq.Events[j].X
+	})
 }
 
-func (bt *BalancedTree) Insert(segment int) {
-	bt.SegmentMap[segment] = 0 // Insert at position 0 (dummy value)
-}
-func (bt *BalancedTree) Delete(segment int) {
-	delete(bt.SegmentMap, segment)
-}
-func GetSuccessor(balancedTree *BalancedTree, segment int) int {
-	successor := -1
-	for s := range balancedTree.SegmentMap {
-		if s > segment && (successor == -1 || s < successor) {
-			successor = s
-		}
-	}
-	return successor
-}
-
-func GetPredecessor(balancedTree *BalancedTree, segment int) int {
-	predecessor := -1
-	for s := range balancedTree.SegmentMap {
-		if s < segment && s > predecessor {
-			predecessor = s
-		}
-	}
-	return predecessor
-}
-func GetNeighbor(balancedTree *BalancedTree, segment int) int {
-	if _, ok := balancedTree.SegmentMap[segment]; ok {
-		return segment
-	}
-	return -1
-}
 func lineSweep(filteredGraphs []Graph) int {
 	intersectionCounter := 0
 	segments := []Graph(filteredGraphs)
@@ -162,6 +136,8 @@ func lineSweep(filteredGraphs []Graph) int {
 		heap.Push(eq, endEvent)
 	}
 
+	eq.SortByX()
+
 	for eq.Len() > 0 {
 		event := heap.Pop(eq).(Event)
 		if processedEvents[event] {
@@ -170,11 +146,10 @@ func lineSweep(filteredGraphs []Graph) int {
 		processedEvents[event] = true // Mark the event as processed
 
 		if event.Type == 0 { // Start-Event
-			root = insertNode(root, segments[event.Seg1])
-			CheckForIntersect(eq, segments[event.Seg1], getSuccessor(root, segments[event.Seg1]), getPredecessor(root, segments[event.Seg1]))
-			CheckForIntersect(eq, segments[event.Seg1], getPredecessor(root, segments[event.Seg1]), defaultGraph) // Pass nil for successor since it's the start event
+			root = insertNode(root, segments[event.Seg1], event.X)
+			CheckForIntersect(eq, segments[event.Seg1], getSuccessor(root, segments[event.Seg1], event.X), getPredecessor(root, segments[event.Seg1], event.X))
+			CheckForIntersect(eq, segments[event.Seg1], getPredecessor(root, segments[event.Seg1], event.X), defaultGraph) // Pass nil for successor since it's the start event
 		} else if event.Type == 1 { // End-Event
-			CheckForIntersect(eq, segments[event.Seg1], getPredecessor(root, segments[event.Seg1]), getSuccessor(root, segments[event.Seg1]))
 			root = deleteNode(root, segments[event.Seg1])
 		} else if event.Type == 2 { // Intersection-Event
 			intersectionCounter++
@@ -182,12 +157,12 @@ func lineSweep(filteredGraphs []Graph) int {
 			root = deleteNode(root, segments[event.Seg1])
 			root = deleteNode(root, segments[event.Seg2])
 			// reinsert both so they are in the correct order in the tree
-			root = insertNode(root, segments[event.Seg1])
-			root = insertNode(root, segments[event.Seg2])
-			preSeg1 := getPredecessor(root, segments[event.Seg1])
-			sucSeg1 := getSuccessor(root, segments[event.Seg1])
-			preSeg2 := getPredecessor(root, segments[event.Seg2])
-			sucSeg2 := getSuccessor(root, segments[event.Seg2])
+			root = insertNode(root, segments[event.Seg1], event.X)
+			root = insertNode(root, segments[event.Seg2], event.X)
+			preSeg1 := getPredecessor(root, segments[event.Seg1], event.X)
+			sucSeg1 := getSuccessor(root, segments[event.Seg1], event.X)
+			preSeg2 := getPredecessor(root, segments[event.Seg2], event.X)
+			sucSeg2 := getSuccessor(root, segments[event.Seg2], event.X)
 			CheckForIntersect(eq, segments[event.Seg1], preSeg1, sucSeg1)
 			CheckForIntersect(eq, segments[event.Seg2], preSeg2, sucSeg2)
 		}
@@ -195,17 +170,56 @@ func lineSweep(filteredGraphs []Graph) int {
 	}
 	return intersectionCounter
 }
+func getPredecessor(node *Node, key Graph, sweepX float64) Graph {
+	var predecessor Graph
+
+	for node != nil {
+		if key.getYatX(sweepX) < node.key.getYatX(sweepX) {
+			node = node.left
+		} else if key.getYatX(sweepX) > node.key.getYatX(sweepX) {
+			predecessor = node.key
+			node = node.right
+		} else {
+			if node.left != nil {
+				predecessor = nodeWithMaximumValue(node.left).key
+			}
+			break
+		}
+	}
+
+	return predecessor
+}
+
+func getSuccessor(node *Node, key Graph, sweepX float64) Graph {
+	var successor Graph
+
+	for node != nil {
+		if key.getYatX(sweepX) < node.key.getYatX(sweepX) {
+			successor = node.key
+			node = node.left
+		} else if key.getYatX(sweepX) > node.key.getYatX(sweepX) {
+			node = node.right
+		} else {
+			if node.right != nil {
+				successor = nodeWithMinimumValue(node.right).key
+			}
+			break
+		}
+	}
+
+	return successor
+}
 
 func CheckForIntersect(eq *EventQueue, seg1 Graph, preSeg Graph, sucSeg Graph) {
 	if preSeg.ID != -1 && areIntercepting(seg1, preSeg) {
-		fmt.Println(seg1, preSeg)
-		crossEvent := Event{Type: 2, X: -1, Seg1: seg1.ID, Seg2: preSeg.ID}
+		intersectionPoint, _ := findIntersectionPoint(seg1, preSeg)
+		crossEvent := Event{Type: 2, X: intersectionPoint.X, Y: intersectionPoint.Y, Seg1: seg1.ID, Seg2: preSeg.ID}
 		heap.Push(eq, crossEvent)
 	}
 
 	if sucSeg.ID != -1 && areIntercepting(seg1, sucSeg) {
-		fmt.Println(seg1, sucSeg)
-		crossEvent := Event{Type: 2, X: -1, Seg1: seg1.ID, Seg2: sucSeg.ID}
+		intersectionPoint, _ := findIntersectionPoint(seg1, sucSeg)
+		crossEvent := Event{Type: 2, X: intersectionPoint.X, Y: intersectionPoint.Y, Seg1: seg1.ID, Seg2: sucSeg.ID}
 		heap.Push(eq, crossEvent)
 	}
 }
@@ -225,7 +239,13 @@ func areIntercepting(graph1 Graph, graph2 Graph) bool {
 	}
 	return false
 }
-
+func (graph *Graph) getYatX(x float64) float64 {
+	if graph.Start.X == graph.End.X {
+		return math.MaxFloat64
+	}
+	slope := (graph.End.Y - graph.Start.Y) / (graph.End.X - graph.Start.X)
+	return slope*(x-graph.Start.X) + graph.Start.Y
+}
 func isPointOnLine2(p1, p2, q Point) bool {
 	// Überprüfung, ob q auf der Strecke p1-p2 liegt
 	if (q.X >= p1.X && q.X <= p2.X) || (q.X >= p2.X && q.X <= p1.X) {
@@ -434,14 +454,14 @@ func newNode(graph Graph) *Node {
 	return node
 }
 
-func insertNode(node *Node, graph Graph) *Node {
+func insertNode(node *Node, graph Graph, sweepX float64) *Node {
 	if node == nil {
 		return newNode(graph)
 	}
-	if graph.Start.Y < node.key.Start.Y {
-		node.left = insertNode(node.left, graph)
-	} else if graph.Start.Y > node.key.Start.Y {
-		node.right = insertNode(node.right, graph)
+	if graph.getYatX(sweepX) < node.key.getYatX(sweepX) {
+		node.left = insertNode(node.left, graph, sweepX)
+	} else if graph.getYatX(sweepX) > node.key.getYatX(sweepX) {
+		node.right = insertNode(node.right, graph, sweepX)
 	} else {
 		return node
 	}
@@ -450,18 +470,18 @@ func insertNode(node *Node, graph Graph) *Node {
 	balanceFactor := getBalanceFactor(node)
 
 	if balanceFactor > 1 {
-		if graph.Start.Y < node.left.key.Start.Y {
+		if node.left != nil && graph.getYatX(sweepX) < node.left.key.getYatX(sweepX) {
 			return rightRotate(node)
-		} else if graph.Start.Y > node.left.key.Start.Y {
+		} else if node.left != nil && graph.getYatX(sweepX) > node.left.key.getYatX(sweepX) {
 			node.left = leftRotate(node.left)
 			return rightRotate(node)
 		}
 	}
 
 	if balanceFactor < -1 {
-		if graph.Start.Y > node.right.key.Start.Y {
+		if node.right != nil && graph.getYatX(sweepX) > node.right.key.getYatX(sweepX) {
 			return leftRotate(node)
-		} else if graph.Start.Y < node.right.key.Start.Y {
+		} else if node.right != nil && graph.getYatX(sweepX) < node.right.key.getYatX(sweepX) {
 			node.right = rightRotate(node.right)
 			return leftRotate(node)
 		}
@@ -519,46 +539,6 @@ func deleteNode(root *Node, graph Graph) *Node {
 		}
 	}
 	return root
-}
-
-func getPredecessor(node *Node, key Graph) Graph {
-	var predecessor Graph
-
-	for node != nil {
-		if key.Start.X < node.key.Start.X {
-			node = node.left
-		} else if key.Start.X > node.key.Start.X {
-			predecessor = node.key
-			node = node.right
-		} else {
-			if node.left != nil {
-				predecessor = nodeWithMaximumValue(node.left).key
-			}
-			break
-		}
-	}
-
-	return predecessor
-}
-
-func getSuccessor(node *Node, key Graph) Graph {
-	var successor Graph
-
-	for node != nil {
-		if key.Start.X < node.key.Start.X {
-			successor = node.key
-			node = node.left
-		} else if key.Start.X > node.key.Start.X {
-			node = node.right
-		} else {
-			if node.right != nil {
-				successor = nodeWithMinimumValue(node.right).key
-			}
-			break
-		}
-	}
-
-	return successor
 }
 
 // Fetches the Node with maximum
