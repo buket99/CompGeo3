@@ -1,12 +1,13 @@
 ### Auswertung der Ergebnisse
 
 #### *Ziel der Aufgabe*
-- Berechnen von Schnittpunkten mithilfe vom Line Sweep Algorithmus
-- Vergleich der einzelnen Laufzeiten
+- Berechnen von Schnittpunkten mittels Implementierung eines Line Sweep Algorithmus
+- Vergleich der einzelnen Laufzeiten mit der Implementierung aus dem ersten Übungsblatt
 
+// TODO BKU: bitte auch drauf eingehen das er selber Implementiert wurde
 #### *Ansatz*
 Um die Y-Struktur des Line Sweep Algorithmus zu realisieren, wurde ein AVL-Baum
-verwendet. Durch die Struktur des Baums ist es möglich, die benachbarten Segmente
+implementiert. Durch die Struktur des Baums ist es möglich, die benachbarten Segmente
 schnell zu finden. Bevor die Schnittpunkte mithilfe des Algorithmus ermittelt werden, wurden die Daten mit der Hiflsfunktion `func filterGraphs(graphs []Graph) []Graph` gefiltert.
 Im Filterprozess werden folgende Graphen aussortiert:
 - Alle Graphen, welche die gleichen x- bzw. y-Koordinaten haben, also alle vertikalen und horizontalen Strecken.
@@ -21,6 +22,8 @@ werden in einem Event-Queue Objekt erstellt, und mit den initialen Start- und En
 aufgefüllt und nach der x-Koordinate sortiert.
 Die einzelnen Ereignisse werden in einer Schleife bearbeitet, bis die Event-Queue geleert ist. Die einzelnen
 werden wie folgt bearbeitet:
+
+// TODO BKU: ausführlicher
 1. *Start-Ereignis*
 Hier wird das Ereignis zunächst auf dem Baum als Knoten hinzugefügt. Anschließend wird das Ereignis mit den Vorgänger- und Nachfolgersegmenten auf einen Schnittpunkt überprüft.
 2. *End-Ereignis*
@@ -35,6 +38,8 @@ wodurch sich eine Komplexität für unsere Implementierung wie folgt verhält: `
 
 Die Ergebnisse sind in der folgenden Tabelle dargestellt:
 
+// TODO BKU: Bitte Vergleich mit CompGeo 1 einfügen, siehe Aufgabenstellung
+
 | Datensatz | Dateiname       | Schnittpunkte | Zeitaufwand    |
 |-----------|-----------------|---------------|----------------|
 | 1         | s_1000_10.dat   | 785           | 3.361125ms    |
@@ -43,5 +48,8 @@ Die Ergebnisse sind in der folgenden Tabelle dargestellt:
 | 4         | s_100000_1.dat |  70639     | 572.325667ms|
 
 Es sind folgende Punkte noch anzumerken:
-- Die Implementierung ist robust auch ohne die Filterung der Daten gegenüber den vertikalen Linien robust.
-- Im Vergleich zur ersten Praktikumsaufgaben tritt eine verschiedene Anzahl von Schnittpunkten auf für die Datensätze zwei bis vier, da Sonderfälle (Bsp.: Punkt berührt Strecke) mit dem Line Sweep Algorithmus nicht beachtet wurden
+- Die Implementierung ist auch ohne Filterung robst gegenüber den aussortierten Edge-Cases, wie Punkte, horizontale oder vertikale Linien,
+Schnittpunkte die sich im selben Punkt treffen, indem es diese ignoriert, aber nicht als Schnittpunkt zählt
+- Im Vergleich zur ersten Praktikumsaufgaben findet man eine geringere Anzahl von Schnittpunkten in den Datensätzen, da die Sonderfälle (Bsp.: Kein echter Schnitt sondern nur Berührung) die Implementierung des Line Sweep Algorithmus diese nicht finden kann
+
+// TODO BKU: Bitte allgemein ausführlicher
