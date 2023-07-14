@@ -88,4 +88,5 @@ wobei n die Anzahl der Strecken repräsentiert.
 
 Eine weitere Anmerkung ist, dass die Implementierung des Line-Sweep-Algorithmus auch ohne die Filterung robust gegenüber
 den aussortierten Edge-Cases, wie Punkte, horizontale oder vertikale Linien, Schnittpunkte die sich im selben Punkt 
-treffen, indem es diese ignoriert, aber nicht als Schnittpunkt zählt.
+treffen, ist, indem es diese ignoriert, aber nicht als Schnittpunkt erkennen kann. Da es aber keinen Sinn macht diese drinnen zu behalten
+werden diese gefiltert und es wird nur mit dem sauberen Datensatz der Algorithmus ausgeführt.
